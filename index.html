@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Scan and Go - QuaggaJS Version</title>
+
+    <!-- Include QuaggaJS from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+        }
+
+        h1 {
+            background-color: #1e5aa4bc;
+            color: white;
+            padding: 1rem;
+        }
+
+        #reader {
+            width: 400px;
+            height: 300px;
+            margin: 20px auto;
+            background-color: black;
+        }
+
+        #scan-status, #scanned-code {
+            font-size: 1.1rem;
+            margin-top: 10px;
+        }
+
+        .button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            margin: 10px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            border-radius: 5px;
+        }
+
+        .button:hover {
+            background-color: #45a049;
+        }
+
+        .nav-links {
+            margin-top: 20px;
+        }
+
+        .nav-links a {
+            margin: 0 15px;
+            text-decoration: none;
+            color: #333;
+            font-weight: bold;
+        }
+
+        .nav-links a:hover {
+            text-decoration: underline;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Welcome to Scan and Go</h1>
+
+    <div id="reader"></div>
+
+    <div id="scanned-code"></div>
+    <div id="scan-status"></div>
+
+    <!-- Hidden file input for image upload -->
+    <input type="file" id="image-file" accept="image/*" />
+
+    <br>
+    <button class="button" onclick="document.getElementById('image-file').click()">Upload Barcode Image</button>
+
+    <div class="nav-links">
+        <a href="/attendance">View Attendance</a>
+        <a href="/logout">Logout</a>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize live camera scanning
+        Quagga.init({
+            inputStream: {
+                name: "Live",
+                type: "LiveStream",
+                target: document.querySelector('#reader'),
+                constraints: {
+                    facingMode: "environment" // Use back camera
+                }
+            },
+            decoder: {
+                readers: ["code_128_reader", "ean_reader", "ean_8_reader", "code_39_reader"]
+            }
+        }, function(err) {
+            if (err) {
+                console.error(err);
+                document.getElementById('scan-status').innerText = "Error initializing scanner.";
+                return;
+            }
+            console.log("Initialization finished. Ready to start");
+            Quagga.start();
+            document.getElementById('scan-status').innerText = "Scanning...";
+        });
+
+        Quagga.onDetected(function(data) {
+            const code = data.codeResult.code;
+            console.log("Barcode detected and processed: " + code);
+            document.getElementById('scanned-code').innerText = `Scanned Code: ${code}`;
+
+            // Optional: Stop after first successful scan
+            Quagga.stop();
+            document.getElementById('scan-status').innerText = "Scan complete!";
+        });
+
+        // Handle file upload for image scanning
+        document.getElementById('image-file').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function() {
+                Quagga.decodeSingle({
+                    src: reader.result,
+                    numOfWorkers: 0, // Needs to be 0 when used with decodeSingle
+                    decoder: {
+                        readers: ["code_128_reader", "ean_reader", "ean_8_reader", "code_39_reader"]
+                    }
+                }, function(result) {
+                    if (result && result.codeResult) {
+                        const code = result.codeResult.code;
+                        document.getElementById('scanned-code').innerText = `Scanned Code: ${code}`;
+                        document.getElementById('scan-status').innerText = "Image scan successful!";
+                        console.log("Scanned from image: " + code);
+                    } else {
+                        document.getElementById('scan-status').innerText = "No barcode found in the image.";
+                        console.error("No barcode found.");
+                    }
+                });
+            };
+            reader.readAsDataURL(file);
+        });
+    });
+    </script>
+
+</body>
+</html>

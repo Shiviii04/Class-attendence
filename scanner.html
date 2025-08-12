@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ID Card Scanner</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://unpkg.com/@ericblade/quagga2@1.2.7/dist/quagga.min.js"></script>
+    <style>
+        .scanner-container {
+            text-align: center;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        .card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin: 20px 0;
+        }
+        .camera-section {
+            margin: 20px 0;
+            position: relative;
+            display: inline-block;
+        }
+        #video {
+            width: 100%;
+            max-width: 640px;
+            border: 2px solid #007bff;
+            border-radius: 8px;
+            background: #000;
+            display: block;
+        }
+        #scan-line {
+            position: absolute;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: red;
+            top: 50%;
+            z-index: 2;
+            animation: scanline-move 1.5s infinite alternate;
+        }
+        @keyframes scanline-move {
+            from { top: 20%; }
+            to { top: 80%; }
+        }
+        .camera-controls {
+            margin: 15px 0;
+        }
+        .input-group {
+            margin: 20px 0;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #333;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        .input-group input:focus {
+            border-color: #007bff;
+            outline: none;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .error {
+            color: #dc3545;
+        }
+        .info {
+            background: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        .status {
+            font-weight: bold;
+            margin: 15px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .nav-buttons {
+            margin-top: 30px;
+        }
+        .nav-buttons button {
+            background: #6c757d;
+        }
+        .nav-buttons button:hover {
+            background: #545b62;
+        }
+        .logout-btn {
+            background: #dc3545 !important;
+        }
+        .logout-btn:hover {
+            background: #c82333 !important;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #ddd;
+        }
+        .tab {
+            flex: 1;
+            padding: 15px;
+            background: #f8f9fa;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .tab.active {
+            background: #007bff;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .success-message {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-size: 18px;
+            font-weight: bold;
+            animation: fadeIn 0.5s ease-in;
+        }
+        .success-message .icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        .countdown {
+            font-size: 14px;
+            color: #6c757d;
+            margin-top: 10px;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .hint-message {
+            color: #ffc107;
+            background: #fff3cd;
+            border: 1px solid #ffeeba;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px auto 0 auto;
+            max-width: 400px;
+            font-size: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="scanner-container">
+        <h1>📷 Scan and Go - ID Scanner</h1>
+        
+        <div class="info">
+            <h3>📋 Choose your scanning method:</h3>
+            <ul>
+                <li><strong>Camera Scan:</strong> Use your device camera to scan barcodes/QR codes</li>
+                <li><strong>Manual Entry:</strong> Type the ID number manually</li>
+            </ul>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('camera')">📷 Camera Scan</button>
+            <button class="tab" onclick="switchTab('manual')">⌨️ Manual Entry</button>
+        </div>
+
+        <!-- Camera Tab -->
+        <div id="camera-tab" class="tab-content active">
+            <div class="card">
+                <h2>📷 Camera Scanner</h2>
+                
+                <div class="camera-section">
+                    <div id="interactive" class="viewport">
+                        <video id="video" autoplay muted playsinline></video>
+                        <div id="scan-line"></div>
+                    </div>
+                </div>
+
+                <div class="camera-controls">
+                    <button id="start-camera" onclick="startCamera()">🎥 Start Camera</button>
+                    <button id="stop-camera" onclick="stopCamera()" disabled>⏹️ Stop Camera</button>
+                </div>
+
+                <div class="status" id="camera-status">Click "Start Camera" to begin scanning...</div>
+                <div class="hint-message" id="hint-message" style="display:none;">No barcode detected. Try adjusting the card, lighting, or distance.</div>
+            </div>
+        </div>
+
+        <!-- Manual Tab -->
+        <div id="manual-tab" class="tab-content">
+            <div class="card">
+                <h2>⌨️ Manual ID Entry</h2>
+                
+                <div class="input-group">
+                    <label for="id-input">ID Number / Barcode:</label>
+                    <input type="text" id="id-input" placeholder="Enter ID number (e.g., 12345)" 
+                           maxlength="50" autocomplete="off">
+                </div>
+
+                <div class="status" id="manual-status">Ready to enter ID...</div>
+
+                <button onclick="markAttendanceManual()" id="manual-submit" disabled>✅ Mark Attendance</button>
+            </div>
+        </div>
+
+        <form method="POST" action="/mark_attendance" id="attendance-form">
+            <input type="hidden" name="scanned_id" id="scanned-id">
+        </form>
+
+        <div class="nav-buttons">
+            <a href="/attendance" style="text-decoration: none;">
+                <button type="button">📊 View Attendance Records</button>
+            </a>
+            <a href="/logout" style="text-decoration: none;">
+                <button type="button" class="logout-btn">🚪 Logout</button>
+            </a>
+        </div>
+    </div>
+
+    <!-- Success Message Overlay -->
+    <div id="success-overlay" class="overlay" style="display: none;">
+        <div class="success-message">
+            <div class="icon">✅</div>
+            <div>Barcode Scanned Successfully!</div>
+            <div>You can go now.</div>
+            <div class="countdown" id="countdown">Redirecting in 3 seconds...</div>
+        </div>
+    </div>
+
+    <script>
+        let scanInProgress = false;
+        let scanTimeout;
+        let quaggaRunning = false;
+
+        // Tab switching
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.getElementById(tabName + '-tab').classList.add('active');
+            if (tabName !== 'camera') {
+                stopCamera();
+            }
+        }
+
+        function showSuccessMessage(scannedCode) {
+            if (scanInProgress) return;
+            scanInProgress = true;
+            stopCamera();
+            const overlay = document.getElementById('success-overlay');
+            overlay.style.display = 'flex';
+            let countdown = 3;
+            const countdownElement = document.getElementById('countdown');
+            const timer = setInterval(() => {
+                countdown--;
+                countdownElement.textContent = `Redirecting in ${countdown} seconds...`;
+                if (countdown <= 0) {
+                    clearInterval(timer);
+                    document.getElementById('scanned-id').value = scannedCode;
+                    document.getElementById('attendance-form').submit();
+                }
+            }, 1000);
+        }
+
+        function startCamera() {
+            const status = document.getElementById('camera-status');
+            const startBtn = document.getElementById('start-camera');
+            const stopBtn = document.getElementById('stop-camera');
+            const scanLine = document.getElementById('scan-line');
+            const hint = document.getElementById('hint-message');
+            scanInProgress = false;
+            hint.style.display = 'none';
+            status.innerHTML = '🔄 Starting camera...';
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            scanLine.style.display = 'block';
+            if (quaggaRunning) {
+                Quagga.stop();
+                quaggaRunning = false;
+            }
+            Quagga.init({
+                inputStream: {
+                    name: 'Live',
+                    type: 'LiveStream',
+                    target: document.querySelector('#interactive'),
+                    constraints: {
+                        width: { min: 640, ideal: 1920, max: 1920 },
+                        height: { min: 480, ideal: 1080, max: 1080 },
+                        facingMode: 'environment',
+                        aspectRatio: { min: 1, max: 2 }
+                    }
+                },
+                decoder: {
+                    readers: [
+                        'code_128_reader',
+                        'ean_reader',
+                        'ean_8_reader',
+                        'code_39_reader',
+                        'code_39_vin_reader',
+                        'codabar_reader',
+                        'upc_reader',
+                        'upc_e_reader',
+                        'i2of5_reader',
+                        '2of5_reader',
+                        'code_93_reader'
+                    ]
+                },
+                locate: true,
+                frequency: 10
+            }, function(err) {
+                if (err) {
+                    status.innerHTML = `❌ Camera error: ${err.message}<br>Try manual entry instead.`;
+                    startBtn.disabled = false;
+                    stopBtn.disabled = true;
+                    scanLine.style.display = 'none';
+                    return;
+                }
+                Quagga.start();
+                quaggaRunning = true;
+                status.innerHTML = '✅ Camera ready! Point at a barcode/QR code...';
+                clearTimeout(scanTimeout);
+                scanTimeout = setTimeout(() => {
+                    if (!scanInProgress) {
+                        hint.style.display = 'block';
+                    }
+                }, 3000);
+            });
+            Quagga.offDetected();
+            Quagga.onDetected(function(result) {
+                if (scanInProgress) return;
+                if (result && result.codeResult && result.codeResult.code) {
+                    showSuccessMessage(result.codeResult.code);
+                }
+            });
+        }
+
+        function stopCamera() {
+            const status = document.getElementById('camera-status');
+            const startBtn = document.getElementById('start-camera');
+            const stopBtn = document.getElementById('stop-camera');
+            const scanLine = document.getElementById('scan-line');
+            const hint = document.getElementById('hint-message');
+            if (quaggaRunning) {
+                Quagga.stop();
+                quaggaRunning = false;
+            }
+            status.innerHTML = 'Camera stopped. Click "Start Camera" to begin scanning...';
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            scanLine.style.display = 'none';
+            hint.style.display = 'none';
+            clearTimeout(scanTimeout);
+        }
+
+        // Manual entry functions
+        const idInput = document.getElementById('id-input');
+        const manualStatus = document.getElementById('manual-status');
+        const manualSubmit = document.getElementById('manual-submit');
+        idInput.addEventListener('input', function() {
+            const value = this.value.trim();
+            if (value.length > 0) {
+                manualSubmit.disabled = false;
+                manualStatus.innerHTML = `Ready to mark attendance for ID: <strong>${value}</strong>`;
+                manualStatus.className = 'status success';
+            } else {
+                manualSubmit.disabled = true;
+                manualStatus.innerHTML = 'Ready to enter ID...';
+                manualStatus.className = 'status';
+            }
+        });
+        idInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !manualSubmit.disabled) {
+                markAttendanceManual();
+            }
+        });
+        function markAttendanceManual() {
+            const idValue = idInput.value.trim();
+            if (!idValue) {
+                alert('Please enter an ID number');
+                return;
+            }
+            showSuccessMessage(idValue);
+        }
+        function focusManualInput() {
+            if (document.getElementById('manual-tab').classList.contains('active')) {
+                idInput.focus();
+            }
+        }
+        window.addEventListener('beforeunload', function() {
+            stopCamera();
+        });
+    </script>
+</body>
+</html>
